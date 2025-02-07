@@ -1,0 +1,40 @@
+from langchain.chat_models import ChatOpenAI
+from langchain.agents import create_sql_agent, AgentType
+from langchain.sql_database import SQLDatabase
+from sqlalchemy import create_engine
+
+# OpenAI API Key (Replace with your actual key)
+OPENAI_API_KEY = "your-openai-api-key"
+
+# SQL Server Connection Details (Windows Authentication)
+server = "localhost\\SQLEXPRESS"
+database = "your_database"
+
+# Corrected connection string for Windows Authentication
+connection_string = f"mssql+pyodbc://@{server}/{database}?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"
+
+# Create SQLAlchemy Engine
+engine = create_engine(connection_string)
+
+# Create LangChain SQL Database instance
+db = SQLDatabase(engine)
+
+# Use GPT-3.5 as LLM
+llm = ChatOpenAI(
+    model="gpt-3.5-turbo",
+    temperature=0,  # Ensures deterministic SQL generation
+    openai_api_key=OPENAI_API_KEY
+)
+
+# Create SQL Agent with GPT-3.5
+sql_agent = create_sql_agent(
+    llm=llm,
+    db=db,
+    agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+    verbose=True
+)
+
+# Test Query
+query = "What are the top 5 products sold last month?"
+response = sql_agent.run(query)
+print(response)
