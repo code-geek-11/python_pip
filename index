@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Insurance Email Analyzer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/quill@1.3.6/quill.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/quill@1.3.6/quill.snow.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        #responseContainer {
+            margin-top: 20px;
+        }
+        .quill-editor {
+            height: 150px;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h3 class="text-center">Insurance Email Analyzer</h3>
+    <form id="emailForm">
+        <div class="mb-3">
+            <label for="emailSubject" class="form-label">Email Subject</label>
+            <input type="text" class="form-control" id="emailSubject" required>
+        </div>
+        <div class="mb-3">
+            <label for="emailContent" class="form-label">Email Content</label>
+            <textarea class="form-control" id="emailContent" rows="4" required></textarea>
+        </div>
+        <div class="mb-3">
+            <label for="fileAttachment" class="form-label">Attach PDF File</label>
+            <input type="file" class="form-control" id="fileAttachment" accept="application/pdf">
+        </div>
+        <button type="button" class="btn btn-primary w-100" id="fireButton">Fire</button>
+    </form>
+
+    <div id="responseContainer" class="mt-4">
+        <h5>Generated Email:</h5>
+        <div id="editor" class="quill-editor"></div>
+    </div>
+</div>
+
+<script>
+    document.getElementById("fireButton").addEventListener("click", function() {
+        let formData = new FormData();
+        formData.append("email_subject", document.getElementById("emailSubject").value);
+        formData.append("email_body", document.getElementById("emailContent").value);
+        let fileInput = document.getElementById("fileAttachment");
+        if (fileInput.files.length > 0) {
+            formData.append("pdf_attachment", fileInput.files[0]);
+        }
+
+        fetch("http://127.0.0.1:5050/analyze-email", {
+            method: "POST",
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.generated_email) {
+                quill.root.innerHTML = data.generated_email; // Update the rich text editor
+            } else {
+                quill.root.innerHTML = "<p><strong>Error:</strong> No email content received.</p>";
+            }
+        })
+        .catch(error => {
+            console.error("Error:", error);
+            quill.root.innerHTML = "<p style='color:red;'>Failed to fetch response.</p>";
+        });
+    });
+
+    // Initialize Quill rich text editor
+    var quill = new Quill("#editor", {
+        theme: "snow"
+    });
+</script>
+
+</body>
+</html>
