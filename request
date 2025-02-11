@@ -1,0 +1,8 @@
+import requests
+
+url = "http://127.0.0.1:5000/analyze-email"
+files = {"pdf_attachment": open("path/to/claim_document.pdf", "rb")}
+data = {"email_subject": "Car Accident Claim Inquiry", "email_body": "I need to file a claim. What do I need?"}
+
+response = requests.post(url, data=data, files=files)
+print(response.json())
