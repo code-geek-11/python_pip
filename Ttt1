@@ -1,0 +1,23 @@
+import pdfplumber
+import pytesseract
+from PIL import Image
+
+# Path to the Tesseract executable (only needed on Windows)
+# pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+
+pdf_path = "your_file.pdf"
+
+with pdfplumber.open(pdf_path) as pdf:
+    for page_number, page in enumerate(pdf.pages):
+        # Extract images from the page
+        for img_number, img in enumerate(page.images):
+            img_data = page.to_image()
+            img_path = f"extracted_image_page{page_number+1}_{img_number+1}.png"
+
+            # Save image
+            img_data.save(img_path, format="PNG")
+            print(f"Saved: {img_path}")
+
+            # Perform OCR on the image
+            extracted_text = pytesseract.image_to_string(Image.open(img_path))
+            print(f"Extracted text from {img_path}:\n{extracted_text}\n")
