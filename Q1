@@ -1,0 +1,60 @@
+import streamlit as st
+import time
+from a.b import generate_answer, Initialize, store_embed  # Import your methods
+
+# Page Configuration
+st.set_page_config(page_title="ChatGPT Clone", page_icon="💬", layout="wide")
+
+# Run Initialization Once
+if "initialized" not in st.session_state:
+    with st.spinner("Setting up the chat environment..."):
+        Initialize()  
+        store_embed()  
+    st.session_state.initialized = True
+
+# Initialize chat history
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# Custom CSS for a better ChatGPT-like experience
+st.markdown("""
+    <style>
+        .stChatContainer { max-width: 750px; margin: auto; }
+        .user-message { background-color: #0084ff; color: white; padding: 12px; border-radius: 10px; max-width: 80%; margin-left: auto; font-size: 16px; }
+        .assistant-message { background-color: #f1f1f1; color: black; padding: 12px; border-radius: 10px; max-width: 80%; margin-right: auto; font-size: 16px; }
+        .typing { color: gray; font-style: italic; font-size: 14px; }
+    </style>
+""", unsafe_allow_html=True)
+
+# Display Chat History
+for message in st.session_state.messages:
+    role_class = "user-message" if message["role"] == "user" else "assistant-message"
+    st.markdown(f'<div class="{role_class}">{message["content"]}</div>', unsafe_allow_html=True)
+    st.write("")
+
+# User Input Handling
+if user_input := st.chat_input("Ask me anything..."):
+    # Store and display user message
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    st.markdown(f'<div class="user-message">{user_input}</div>', unsafe_allow_html=True)
+    st.write("")
+
+    # Typing Indicator
+    with st.empty():
+        st.markdown('<div class="typing">Assistant is typing...</div>', unsafe_allow_html=True)
+        time.sleep(1)  
+
+    # Generate AI Response
+    response = generate_answer(user_input)
+
+    # Simulated Streaming Response (Fix: Use `st.empty()` to update a single message)
+    response_placeholder = st.empty()
+    streamed_response = ""
+
+    for char in response:
+        streamed_response += char
+        response_placeholder.markdown(f'<div class="assistant-message">{streamed_response}</div>', unsafe_allow_html=True)
+        time.sleep(0.02)  # Simulated delay
+
+    # Store final response in session state
+    st.session_state.messages.append({"role": "assistant", "content": streamed_response})
