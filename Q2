@@ -1,0 +1,139 @@
+import streamlit as st
+import time
+from a.b import generate_answer, Initialize, store_embed  # Import your methods
+
+# Page Configuration
+st.set_page_config(page_title="ChatGPT Clone", page_icon="💬", layout="wide")
+
+# Run Initialization Once
+if "initialized" not in st.session_state:
+    with st.spinner("Setting up the chat environment..."):
+        Initialize()  
+        store_embed()  
+    st.session_state.initialized = True
+
+# Initialize chat history
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# Initialize multiple chat sessions
+if "conversations" not in st.session_state:
+    st.session_state.conversations = {"Chat 1": []}
+    st.session_state.current_chat = "Chat 1"
+
+# Function to switch chats
+def switch_chat(chat_name):
+    st.session_state.current_chat = chat_name
+    st.session_state.messages = st.session_state.conversations[chat_name]
+
+# Function to create a new chat
+def new_chat():
+    new_chat_name = f"Chat {len(st.session_state.conversations) + 1}"
+    st.session_state.conversations[new_chat_name] = []
+    switch_chat(new_chat_name)
+
+# Function to delete a message
+def delete_message(index):
+    del st.session_state.messages[index]
+    st.experimental_rerun()
+
+# Function to edit a message
+def edit_message(index, new_text):
+    st.session_state.messages[index]["content"] = new_text
+    st.experimental_rerun()
+
+# Custom CSS for ChatGPT-like UI
+st.markdown("""
+    <style>
+        body { font-family: 'Arial', sans-serif; }
+        .stChatContainer { max-width: 750px; margin: auto; }
+        .user-message {
+            background-color: #0084ff;
+            color: white;
+            padding: 12px;
+            border-radius: 10px;
+            max-width: 80%;
+            margin-left: auto;
+            font-size: 16px;
+        }
+        .assistant-message {
+            background-color: #f1f1f1;
+            color: black;
+            padding: 12px;
+            border-radius: 10px;
+            max-width: 80%;
+            margin-right: auto;
+            font-size: 16px;
+        }
+        .typing {
+            color: gray;
+            font-style: italic;
+            font-size: 14px;
+            margin-left: 10px;
+        }
+        .stChatInput textarea {
+            border-radius: 10px;
+            padding: 10px;
+            font-size: 16px;
+        }
+        .delete-btn { color: red; font-size: 14px; cursor: pointer; margin-left: 10px; }
+        .edit-btn { color: blue; font-size: 14px; cursor: pointer; margin-left: 10px; }
+    </style>
+""", unsafe_allow_html=True)
+
+# Sidebar for conversation switching
+with st.sidebar:
+    st.header("💬 Conversations")
+    for chat_name in st.session_state.conversations.keys():
+        if st.button(chat_name, key=chat_name):
+            switch_chat(chat_name)
+    st.button("➕ New Chat", on_click=new_chat)
+
+# Display chat messages
+for idx, message in enumerate(st.session_state.messages):
+    role_class = "user-message" if message["role"] == "user" else "assistant-message"
+    st.markdown(f'<div class="{role_class}">{message["content"]}</div>', unsafe_allow_html=True)
+
+    # Edit and delete buttons
+    col1, col2 = st.columns([0.1, 0.1])
+    with col1:
+        if st.button("✏️ Edit", key=f"edit-{idx}"):
+            new_text = st.text_input("Edit message:", message["content"], key=f"input-{idx}")
+            if st.button("Save", key=f"save-{idx}"):
+                edit_message(idx, new_text)
+
+    with col2:
+        if st.button("🗑️ Delete", key=f"delete-{idx}"):
+            delete_message(idx)
+
+    st.write("")  # Space between messages
+
+# User Input Handling
+if user_input := st.chat_input("Ask me anything..."):
+    # Store and display user message
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    st.markdown(f'<div class="user-message">{user_input}</div>', unsafe_allow_html=True)
+    st.write("")
+
+    # Typing Indicator (temporary placeholder)
+    typing_placeholder = st.empty()
+    typing_placeholder.markdown('<div class="typing">Assistant is typing...</div>', unsafe_allow_html=True)
+    time.sleep(1)  # Simulated thinking time
+
+    # Generate AI Response
+    response = generate_answer(user_input)
+
+    # Simulated Streaming Response (Fix: Use `st.empty()` to update a single message)
+    response_placeholder = st.empty()
+    streamed_response = ""
+
+    for char in response:
+        streamed_response += char
+        response_placeholder.markdown(f'<div class="assistant-message">{streamed_response}</div>', unsafe_allow_html=True)
+        time.sleep(0.02)  # Simulated delay
+
+    # Remove typing indicator after response is complete
+    typing_placeholder.empty()
+
+    # Store final response in session state
+    st.session_state.messages.append({"role": "assistant", "content": streamed_response})
