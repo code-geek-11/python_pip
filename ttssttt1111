@@ -1,0 +1,259 @@
+import streamlit as st
+from openai_create.interpret import generate_answer, initialize, store_new_embeddings_chroma
+import uuid
+import datetime
+from io import BytesIO
+from fpdf import FPDF
+from docx import Document
+import os
+
+# Initialize AI model and database
+initialize()
+store_new_embeddings_chroma()
+
+# Streamlit UI Configuration
+st.set_page_config(page_title="ChatGPT Replica", layout="wide")
+st.title("ChatGPT Replica")
+
+# Initialize session state variables
+if "chats" not in st.session_state:
+    st.session_state["chats"] = {}  
+if "chat_titles" not in st.session_state:
+    st.session_state["chat_titles"] = {}  
+if "chat_timestamps" not in st.session_state:
+    st.session_state["chat_timestamps"] = {}  
+if "current_chat_id" not in st.session_state:
+    st.session_state["current_chat_id"] = None  
+if "editing_index" not in st.session_state:
+    st.session_state["editing_index"] = None  
+if "renaming_chat" not in st.session_state:
+    st.session_state["renaming_chat"] = None  
+if "new_chat_trigger" not in st.session_state:
+    st.session_state["new_chat_trigger"] = False  
+if "search_query" not in st.session_state:
+    st.session_state["search_query"] = ""  
+
+# Function to create a new chat session
+def new_chat():
+    chat_id = str(uuid.uuid4())  
+    timestamp = datetime.datetime.now()  
+
+    st.session_state["chats"][chat_id] = []  
+    st.session_state["chat_titles"][chat_id] = "Untitled Chat"  
+    st.session_state["chat_timestamps"][chat_id] = timestamp  
+    st.session_state["current_chat_id"] = chat_id  
+    st.session_state["editing_index"] = None
+    st.session_state["renaming_chat"] = None
+    st.session_state["new_chat_trigger"] = True  
+
+# Ensure there's an active chat session
+if st.session_state["current_chat_id"] is None:
+    new_chat()  
+
+# Function to categorize chats by date
+def categorize_chats():
+    chat_dates = {}
+    for chat_id, timestamp in st.session_state["chat_timestamps"].items():
+        date_str = timestamp.strftime("%d-%m-%Y")  
+        if date_str not in chat_dates:
+            chat_dates[date_str] = []
+        chat_dates[date_str].append(chat_id)
+    return dict(sorted(chat_dates.items(), reverse=True))  
+
+
+### NEW FEATURE: DOWNLOAD CHAT HISTORY ###
+# Function to generate chat history text
+def get_chat_history():
+    chat_id = st.session_state["current_chat_id"]
+    messages = st.session_state["chats"].get(chat_id, [])
+    chat_text = "\n".join([f"{msg['role'].capitalize()}: {msg['content']}" for msg in messages])
+    return chat_text
+
+
+
+# Function to create DOCX
+def generate_docx():
+    doc = Document()
+    chat_text = get_chat_history()
+    for line in chat_text.split("\n"):
+        doc.add_paragraph(line)
+    
+    doc_output = BytesIO()
+    doc.save(doc_output)
+    doc_output.seek(0)
+    return doc_output
+
+# Function to create TXT file
+def generate_txt():
+    chat_text = get_chat_history().encode("utf-8")
+    return BytesIO(chat_text)
+
+
+# Sidebar: Collapsible "Saved Links" Section
+with st.sidebar.expander("🔗 Saved Links", expanded=False):
+    st.markdown("<h6>📌 Your Favorites</h6>", unsafe_allow_html=True)
+
+    # Initialize session state for saved links
+    if "saved_links" not in st.session_state:
+        st.session_state["saved_links"] = []  # Stores (name, URL) pairs
+
+    # Input fields to add new link
+    new_link_name = st.text_input("Name", key="link_name")
+    new_link_url = st.text_input("URL", key="link_url")
+
+    # Button to save link
+    if st.button("➕ Add to Favorites"):
+        if new_link_name and new_link_url:
+            st.session_state["saved_links"].append((new_link_name, new_link_url))
+            st.rerun()  # Refresh UI after adding
+
+    # Display saved links in sidebar
+    for i, (name, url) in enumerate(st.session_state["saved_links"]):
+        col1, col2 = st.columns([8, 2])
+        with col1:
+            st.markdown(f"🔹 [{name}]({url})")  # Clickable link
+        with col2:
+            if st.button("❌", key=f"delete_{i}"):
+                del st.session_state["saved_links"][i]
+                st.rerun()  # Refresh after deletion
+
+
+# Sidebar: Search Bar for Chat Titles (Now Below Download Section)
+st.sidebar.header("Chat History")
+search_query = st.sidebar.text_input("🔍 Search Chats", value=st.session_state["search_query"])
+st.session_state["search_query"] = search_query.strip().lower()
+
+
+# Sidebar: Date-Based Chat History Navigation
+chat_by_date = categorize_chats()
+
+for date, chat_list in chat_by_date.items():
+    filtered_chats = [
+        chat_id
+        for chat_id in chat_list
+        if search_query in st.session_state["chat_titles"][chat_id].lower()
+    ]
+
+    if filtered_chats:  
+        with st.sidebar.expander(date, expanded=True):
+            for chat_id in filtered_chats:
+                col1, col2 = st.columns([2, 8])  
+                with col1:
+                    if st.button("✏️", key=f"rename_{chat_id}"):
+                        st.session_state["renaming_chat"] = chat_id
+                        st.rerun()
+                with col2:
+                    if st.button(st.session_state["chat_titles"][chat_id], key=f"chat_{chat_id}"):
+                        st.session_state["current_chat_id"] = chat_id
+                        st.session_state["editing_index"] = None
+                        st.session_state["renaming_chat"] = None
+                        st.rerun()
+
+# Sidebar: Rename Chat
+if st.session_state["renaming_chat"]:
+    chat_id = st.session_state["renaming_chat"]
+    new_name = st.sidebar.text_input("Rename Chat", st.session_state["chat_titles"][chat_id])
+    if st.sidebar.button("Save Name"):
+        st.session_state["chat_titles"][chat_id] = new_name.strip() or "Untitled Chat"
+        st.session_state["renaming_chat"] = None
+        st.rerun()
+
+# New Chat Button
+if st.sidebar.button("🆕 New Chat"):
+    new_chat()
+
+# Fix for st.rerun() issue
+if st.session_state.get("new_chat_trigger"):
+    st.session_state["new_chat_trigger"] = False
+    st.rerun()
+
+# Load the active chat session
+chat_id = st.session_state["current_chat_id"]
+messages = st.session_state["chats"][chat_id]
+
+
+# Sidebar: PDF Upload Section (Above Download Chat History)
+st.sidebar.header("📤 Upload PDF Document to Query")
+uploaded_file = st.sidebar.file_uploader("Choose a PDF file", type=["pdf"])
+
+
+# Define the save path
+save_folder = r"C:\Users\ponma\OneDrive\Desktop\pdf_samples"
+
+# Ensure the folder exists
+os.makedirs(save_folder, exist_ok=True)
+
+# Save the uploaded file
+if uploaded_file is not None:
+    file_path = os.path.join(save_folder, uploaded_file.name)
+    
+    with open(file_path, "wb") as f:
+        f.write(uploaded_file.getbuffer())  # Save file to local directory
+    
+    st.sidebar.success(f"✅ File saved to: {file_path}")
+
+# Sidebar: Chat Download Section (Fixed Position Above Search)
+st.sidebar.header("📥 Download Chat History")
+download_format = st.sidebar.selectbox("Select Format:", ["DOCX", "TXT"], key="download_format")
+
+if download_format == "DOCX":
+    st.sidebar.download_button("Download DOCX", data=generate_docx(), file_name="chat_history.docx",
+                               mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
+elif download_format == "TXT":
+    st.sidebar.download_button("Download TXT", data=generate_txt(), file_name="chat_history.txt", mime="text/plain")
+
+                
+
+
+# Display chat messages
+for i, message in enumerate(messages):
+    with st.chat_message(message["role"]):
+        if message["role"] == "user":
+            col1, col2 = st.columns([8, 2])
+            with col1:
+                st.write(message["content"])
+            with col2:
+                if st.button("✏️ Edit", key=f"edit_{chat_id}_{i}"):
+                    st.session_state["editing_index"] = i
+                    st.rerun()
+        else:
+            st.write(message["content"])
+
+# Editing existing message
+if st.session_state["editing_index"] is not None:
+    index = st.session_state["editing_index"]
+    new_text = st.text_input("Edit your message:", messages[index]["content"])
+    
+    if st.button("Save Changes"):
+        messages[index]["content"] = new_text
+        if messages[index]["role"] == "user":
+            response = generate_answer(new_text)  
+            messages[index + 1]["content"] = response  
+        st.session_state["editing_index"] = None
+        st.rerun()
+
+# User input for new messages
+user_input = st.chat_input("Type your message...")
+
+# Row with chat input & Clear Chat button
+col1, col2 = st.columns([8, 2])  # Adjust width ratio if needed
+
+with col1:
+    if user_input:
+        messages.append({"role": "user", "content": user_input})
+        response = generate_answer(user_input)
+        messages.append({"role": "assistant", "content": response})
+        st.rerun()
+
+with col2:
+    if st.button("🗑️ Clear Chat"):
+        st.session_state["chats"] = {}  
+        st.session_state["chat_titles"] = {}  
+        st.session_state["chat_timestamps"] = {}  
+        st.session_state["current_chat_id"] = None  
+        st.session_state["editing_index"] = None  
+        st.session_state["renaming_chat"] = None  
+        new_chat()  # Create a fresh chat session
+        st.rerun()  # Refresh the UI
+
