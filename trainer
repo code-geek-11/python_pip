@@ -1,0 +1,97 @@
+import streamlit as st
+import os
+import time
+import zipfile
+from PyPDF2 import PdfReader
+from pdf_trails.pdf_train import embed_pdfs  # Import your embedding function
+
+# Set Streamlit Page Configuration
+st.set_page_config(page_title="PDF Embedding App", layout="wide")
+st.title("📄 PDF Embedding with Drag & Drop Support")
+
+# Step 1: Define Collection-to-Folder Mapping
+collection_folders = {
+    "Research Papers": "C:/Users/ponma/OneDrive/Desktop/Project_train/pdf_folders/research_papers",
+    "Legal Documents": "C:/Users/ponma/OneDrive/Desktop/Project_train/pdf_folders/legal_docs",
+    "Medical Reports": "C:/Users/ponma/OneDrive/Desktop/Project_train/pdf_folders/medical_reports",
+    "Customer Feedback": "C:/Users/ponma/OneDrive/Desktop/Project_train/pdf_folders/customer_feedback"
+}
+
+# Step 2: Let User Select a Collection from Dropdown
+st.markdown("### Select a Collection")
+collection_name = st.selectbox("Choose Collection", list(collection_folders.keys()), index=0)
+
+# Get the associated folder path
+collection_folder = collection_folders.get(collection_name, None)
+
+# Step 3: Drag & Drop File Upload (Supports PDF & ZIP)
+st.markdown("### Upload PDFs or a ZIP File Containing PDFs")
+uploaded_files = st.file_uploader("Upload PDFs or ZIP", accept_multiple_files=True, type=["pdf", "zip"])
+
+# Step 4: Process Uploaded Files
+extracted_files = []
+
+if uploaded_files:
+    
+    # Check if the collection folder exists
+    if not os.path.exists(collection_folder):
+        st.error(f"❌ Collection folder '{collection_folder}' does not exist. Please create it first.")
+    else:
+        st.markdown("### Processing Files...")
+
+        # Handle File Uploads
+        for file in uploaded_files:
+            file_path = os.path.join(collection_folder, file.name)
+
+            if file.name.endswith(".pdf"):  
+                # Save individual PDF
+                with open(file_path, "wb") as f:
+                    f.write(file.getbuffer())  
+                extracted_files.append(file_path)
+
+            elif file.name.endswith(".zip"):
+                # Extract ZIP File without creating extra folders
+                with zipfile.ZipFile(file, 'r') as zip_ref:
+                    for file_name in zip_ref.namelist():
+                        if file_name.endswith(".pdf"):  # Ensure only PDFs are extracted
+                            extracted_path = os.path.join(collection_folder, os.path.basename(file_name))
+                            with zip_ref.open(file_name) as source, open(extracted_path, "wb") as target:
+                                target.write(source.read())
+                            extracted_files.append(extracted_path)
+
+        st.success(f"✅ Files have been saved in: **{collection_folder}**")
+
+        # Step 5: Display File Details
+        file_details = []
+        for pdf_path in extracted_files:
+            try:
+                pdf_reader = PdfReader(pdf_path)
+                num_pages = len(pdf_reader.pages)
+                file_details.append({"Name": os.path.basename(pdf_path), "Size (KB)": round(os.path.getsize(pdf_path) / 1024, 2), "Pages": num_pages})
+            except:
+                pass  # Skip non-PDF files in ZIP
+
+        if file_details:
+            st.markdown("### Uploaded & Extracted PDFs:")
+            st.dataframe(file_details, use_container_width=True)
+
+        # Step 6: Embed PDFs
+        if st.button("Embed PDFs"):
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+
+            total_files = len(extracted_files)
+            for i, pdf_path in enumerate(extracted_files):
+                status_text.text(f"Processing: {os.path.basename(pdf_path)} ({i+1}/{total_files})")
+                embed_pdfs(pdf_path, collection_name)  # Call embedding function
+                progress_bar.progress((i + 1) / total_files)
+                time.sleep(1)  # Simulate processing delay
+            
+            status_text.text("✅ All PDFs have been embedded successfully!")
+            st.success(f"Embedding completed for collection: **{collection_name}**")
+
+# Step 7: Reset Button to Clear All UI Values
+if st.button("Start Fresh"):
+    for key in list(st.session_state.keys()):  # Ensure all session state values are deleted
+        del st.session_state[key]
+    st.rerun()  # Rerun the app to reset UI state
