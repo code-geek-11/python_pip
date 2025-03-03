@@ -1,1 +1,65 @@
+from pdf2image import convert_from_path
+import pytesseract
+import cv2
+import numpy as np
+from PIL import Image
+from spellchecker import SpellChecker
 
+# Path to your scanned PDF
+pdf_path = 'scanned_document.pdf'
+
+# Convert PDF to a list of images
+images = convert_from_path(pdf_path, dpi=300)
+
+# Preprocess image for better OCR
+def preprocess_image(image):
+    image = np.array(image)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    image = cv2.GaussianBlur(image, (5, 5), 0)
+    image = cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+    kernel = np.ones((2, 2), np.uint8)
+    image = cv2.dilate(image, kernel, iterations=1)
+    return Image.fromarray(image)
+
+# Deskew image
+def deskew_image(image):
+    coords = np.column_stack(np.where(image > 0))
+    angle = cv2.minAreaRect(coords)[-1]
+    if angle < -45:
+        angle = -(90 + angle)
+    else:
+        angle = -angle
+    (h, w) = image.shape[:2]
+    center = (w // 2, h // 2)
+    M = cv2.getRotationMatrix2D(center, angle, 1.0)
+    rotated = cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+    return rotated
+
+# Extract text from image using Tesseract
+def extract_text_from_image(image):
+    processed_image = preprocess_image(image)
+    text = pytesseract.image_to_string(
+        processed_image,
+        lang='eng',
+        config='--oem 3 --psm 6'
+    )
+    return text
+
+# Correct OCR errors using spell-checking
+def correct_text(text):
+    spell = SpellChecker()
+    return " ".join([spell.correction(word) for word in text.split()])
+
+# Extract text from all pages
+extracted_text = []
+for i, image in enumerate(images):
+    text = extract_text_from_image(image)
+    corrected_text = correct_text(text)
+    extracted_text.append(corrected_text)
+    print(f"Page {i+1} Text:\n{corrected_text}\n")
+
+# Save extracted text to a file
+with open('extracted_text.txt', 'w', encoding='utf-8') as f:
+    f.write("\n".join(extracted_text))
+
+print("Text extraction complete. Saved to 'extracted_text.txt'.")
