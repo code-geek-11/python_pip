@@ -1,1 +1,182 @@
+import streamlit as st
+import time
+import random
+from io import BytesIO
+from docx import Document
 
+# Placeholder functions to simulate processing
+def extract_contents():
+    time.sleep(1)
+    return "Extracted text from PDFs."
+
+def anonymize_data():
+    time.sleep(1)
+    return "Anonymized text (PII removed)."
+
+def classify_content():
+    time.sleep(1)
+    return random.choice(["Email", "Attachment"])
+
+def extract_context():
+    time.sleep(1)
+    return {"email_content": "Sample email content", "attachment_context": "Sample attachment details"}
+
+def structure_content():
+    time.sleep(1)
+    return "Structured content for LLM input."
+
+def generate_ai_response():
+    time.sleep(1)
+    return "AI-generated response to the email."
+
+def compare_responses():
+    time.sleep(1)
+    return {"match_score": random.randint(75, 100), "human_response": "Sample human response"}
+
+# Streamlit UI
+st.set_page_config(page_title="Insurance Email Automation", layout="wide")
+
+st.sidebar.title("📂 Insurance Email Automation")
+st.sidebar.subheader("Upload PDFs for Processing")
+
+# Allow multiple PDF uploads
+uploaded_files = st.sidebar.file_uploader("Upload PDF Files", type=["pdf"], accept_multiple_files=True)
+
+# Create session state variables for storing results
+if "results" not in st.session_state:
+    st.session_state["results"] = {}
+
+# Process Button (Only enabled if files are uploaded)
+if uploaded_files:
+    if st.sidebar.button("🚀 Process All Emails"):
+        st.sidebar.success("Processing Started...")
+
+        # Progress bar
+        progress_bar = st.sidebar.progress(0)
+        steps = [
+            "Extracting contents...", "Anonymizing data...", "Classifying content...",
+            "Extracting context...", "Structuring content...", "Generating AI Response...",
+            "Comparing AI vs Human Response..."
+        ]
+        
+        with st.spinner(steps[0]):
+            st.session_state["results"]["extract"] = extract_contents()
+            progress_bar.progress(14) 
+        
+        with st.spinner(steps[1]):
+            st.session_state["results"]["anonymize"] = anonymize_data()
+            progress_bar.progress(28)
+        
+        with st.spinner(steps[2]):
+            st.session_state["results"]["classify"] = classify_content()
+            progress_bar.progress(42)
+        
+        with st.spinner(steps[3]):
+            st.session_state["results"]["context"] = extract_context()
+            progress_bar.progress(56)
+        
+        with st.spinner(steps[4]):
+            st.session_state["results"]["structure"] = structure_content()
+            progress_bar.progress(70)
+        
+        with st.spinner(steps[5]):
+            st.session_state["results"]["ai_response"] = generate_ai_response()
+            progress_bar.progress(85)
+        
+        with st.spinner(steps[6]):
+            st.session_state["results"]["compare"] = compare_responses()
+            progress_bar.progress(100)
+
+        progress_bar.empty()
+        st.sidebar.success("Processing Complete! 🎉")
+
+else:
+    st.sidebar.warning("Please upload at least one PDF file to proceed.")
+
+# Main Page - Tabs for Modules
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, dashboard = st.tabs([
+    "Extract Contents", "Anonymize Data", "Classify Content", "Extract Context",
+    "Structure Content", "AI Response", "Compare Responses", "📊 Dashboard"
+])
+
+with tab1:
+    st.header("📜 Extracted Contents")
+    st.success(st.session_state["results"].get("extract", "No data extracted yet."))
+
+with tab2:
+    st.header("🔒 Anonymized Data")
+    st.success(st.session_state["results"].get("anonymize", "No anonymized data yet."))
+
+with tab3:
+    st.header("📌 Classified Content")
+    st.info(f"Content identified as: **{st.session_state['results'].get('classify', 'Not classified yet.')}**")
+
+with tab4:
+    st.header("📝 Extracted Context")
+    st.json(st.session_state["results"].get("context", {}))
+
+with tab5:
+    st.header("🗂 Structured Content")
+    st.success(st.session_state["results"].get("structure", "No structured content yet."))
+
+with tab6:
+    st.header("🤖 AI Response")
+    st.success(st.session_state["results"].get("ai_response", "No AI response yet."))
+
+with tab7:
+    st.header("🔍 AI vs Human Response")
+    comparison = st.session_state["results"].get("compare", {})
+    if comparison:
+        st.write(f"**AI-Human Match Score:** {comparison['match_score']}%")
+        st.write(f"**Human Response:** {comparison['human_response']}")
+    else:
+        st.info("No comparison done yet.")
+
+# Dashboard
+with dashboard:
+    st.header("📊 Business Insights & Metrics")
+    st.metric("Total Emails Processed", random.randint(100, 500))
+    st.metric("AI Success Rate (%)", random.randint(85, 98))
+    st.metric("Time Saved (hrs)", random.randint(50, 200))
+
+# Function to Generate Downloadable Report
+def generate_report():
+    doc = Document()
+    doc.add_heading("📄 AI Processing Report", level=1)
+
+    doc.add_heading("📜 Extracted Contents", level=2)
+    doc.add_paragraph(st.session_state["results"].get("extract", "No data extracted."))
+
+    doc.add_heading("🔒 Anonymized Data", level=2)
+    doc.add_paragraph(st.session_state["results"].get("anonymize", "No anonymized data."))
+
+    doc.add_heading("📌 Classified Content", level=2)
+    doc.add_paragraph(st.session_state["results"].get("classify", "Not classified yet."))
+
+    doc.add_heading("📝 Extracted Context", level=2)
+    context = st.session_state["results"].get("context", {})
+    for key, value in context.items():
+        doc.add_paragraph(f"{key}: {value}")
+
+    doc.add_heading("🗂 Structured Content", level=2)
+    doc.add_paragraph(st.session_state["results"].get("structure", "No structured content."))
+
+    doc.add_heading("🤖 AI Response", level=2)
+    doc.add_paragraph(st.session_state["results"].get("ai_response", "No AI response."))
+
+    doc.add_heading("🔍 AI vs Human Response", level=2)
+    comparison = st.session_state["results"].get("compare", {})
+    doc.add_paragraph(f"Match Score: {comparison.get('match_score', 'N/A')}%")
+    doc.add_paragraph(f"Human Response: {comparison.get('human_response', 'N/A')}")
+
+    # Save document to BytesIO
+    file_stream = BytesIO()
+    doc.save(file_stream)
+    file_stream.seek(0)
+    return file_stream
+
+# Download Button
+st.sidebar.markdown("### 📥 Download Report")
+if st.sidebar.button("Download AI Report"):
+    file_stream = generate_report()
+    st.sidebar.download_button(label="📄 Download Report (DOCX)", data=file_stream, file_name="AI_Report.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
