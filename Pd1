@@ -1,0 +1,33 @@
+from phidata.agent import WebAgent
+from phidata.memory import LocalMemory
+from phidata.tools import BrowserTool
+from phidata.models import AzureOpenAI
+
+# Configure Azure OpenAI API
+azure_openai = AzureOpenAI(
+    api_key="your_azure_openai_api_key",
+    endpoint="your_azure_endpoint",
+    deployment_name="your_deployment_name",
+    model="gpt-4"
+)
+
+# Initialize tools (browser for web search)
+browser_tool = BrowserTool()
+
+# Set up memory (to store previous interactions)
+memory = LocalMemory()
+
+# Create the Web Agent
+web_agent = WebAgent(
+    name="SmartWebAgent",
+    model=azure_openai,
+    tools=[browser_tool],
+    memory=memory
+)
+
+# Define a query and make the agent search the web
+query = "Latest advancements in AI"
+response = web_agent.run(query)
+
+# Print the response
+print(response)
